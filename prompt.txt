@@ -1,0 +1,14 @@
+Buat issue.md, berisi planning untuk membuat project baru di folder ini
+
+Menggunakan Bun
+
+Dan gunakan dependency :
+
+ElysiaJs
+Drizzle
+MySQL
+Jangan terlalu low level atau detail
+
+Cukup instruksikan dengan high level
+
+Nanti dokumen planningnya akan digunakan oleh programmer lain atau model AI yang lebih murah untuk diimplementasikan
