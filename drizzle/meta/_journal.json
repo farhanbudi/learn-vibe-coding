@@ -8,6 +8,20 @@
       "when": 1782185290508,
       "tag": "0000_real_madelyne_pryor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1782715741549,
+      "tag": "0001_gifted_scourge",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1782715922597,
+      "tag": "0002_superb_khan",
+      "breakpoints": true
     }
   ]
 }
