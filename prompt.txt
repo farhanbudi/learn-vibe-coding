@@ -1,14 +1,45 @@
-Buat issue.md, berisi planning untuk membuat project baru di folder ini
+Buat issue.md yang berisi perencanaan pembuatan fitur yang nanti akan diimplementasikan oleh junior developer atau AI model yang lebih murah
 
-Menggunakan Bun
+isi dari planningnya sebagai berikut:
 
-Dan gunakan dependency :
+buat tabel users yang berisi field:
+id integer auto increment primary key
+name varchar(255) not null
+email varchar(255) not null unique
+password varchar(255) not null (password merupakan hash dari bcrypt )
+created_at timestamp default now()
+updated_at timestamp default now()
 
-ElysiaJs
-Drizzle
-MySQL
-Jangan terlalu low level atau detail
+Buatkan API untuk registrasi user baru
 
-Cukup instruksikan dengan high level
+Endpoint: POST /api/users/register
 
-Nanti dokumen planningnya akan digunakan oleh programmer lain atau model AI yang lebih murah untuk diimplementasikan
+Body:
+{
+    "name": "Budi",
+    "email": "budi@mail.com",
+    "password": "budii"
+}
+
+Response body (Success):
+{
+    status: "success",
+    data: [data_user]
+}
+
+Response body (failed):
+{
+    status: "failed",
+    error: [message_error]
+}
+
+Struktur folder di dalam src:
+- routes: folder ini berisi routing ElysiaJs
+- services: folder ini berisi logic bisnis aplikasi
+
+Struktur file:
+- routes: menggunakan format users-route.ts
+- services: menggunakan routes misal users-service.ts
+
+Jelaskan langkah-langkah untuk mengimplementasikan fitur ini, sehingga nanti junior programmer atau AI model yang lebih murah bisa mengimplementasikannya dengan baik   
+

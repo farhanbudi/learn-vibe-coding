@@ -1,26 +1,12 @@
 import { Elysia } from "elysia";
-import { db } from "./db";
-import { users } from "./db/schema";
+import { usersRoute } from "./routes/users-route";
 
 const app = new Elysia()
   .get("/", () => ({
     status: "OK",
     message: "Server is running",
   }))
-  .get("/users", async () => {
-    try {
-      const allUsers = await db.select().from(users);
-      return {
-        success: true,
-        data: allUsers,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || "Failed to fetch users",
-      };
-    }
-  })
+  .use(usersRoute)
   .listen(Number(process.env.PORT) || 3000);
 
 console.log(
