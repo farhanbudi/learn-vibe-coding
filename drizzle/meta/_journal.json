@@ -22,6 +22,13 @@
       "when": 1782715922597,
       "tag": "0002_superb_khan",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1782718475020,
+      "tag": "0003_eminent_bullseye",
+      "breakpoints": true
     }
   ]
 }

@@ -9,3 +9,9 @@ export const users = mysqlTable("users", {
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });
 
+export const sessions = mysqlTable("sessions", {
+  id: int("id").notNull().primaryKey().autoincrement(),
+  userId: int("user_id").notNull().references(() => users.id),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+});

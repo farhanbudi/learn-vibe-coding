@@ -2,21 +2,18 @@ Buat issue.md yang berisi perencanaan pembuatan fitur yang nanti akan diimplemen
 
 isi dari planningnya sebagai berikut:
 
-buat tabel users yang berisi field:
+buat tabel sessions yang berisi field:
 id integer auto increment primary key
-name varchar(255) not null
-email varchar(255) not null unique
-password varchar(255) not null (password merupakan hash dari bcrypt )
+token varchar(255) not null (isinya UUID untuk token user yang login)
+user_id integer (FK ke tabel users)
 created_at timestamp default now()
-updated_at timestamp default now()
 
-Buatkan API untuk registrasi user baru
+Buatkan API untuk login user, lalu mendapatkan token
 
-Endpoint: POST /api/users/register
+Endpoint: POST /api/users/login
 
 Body:
 {
-    "name": "Budi",
     "email": "budi@mail.com",
     "password": "budii"
 }
@@ -24,7 +21,7 @@ Body:
 Response body (Success):
 {
     status: "success",
-    data: [data_user]
+    data: [token]
 }
 
 Response body (failed):
