@@ -57,3 +57,36 @@ export const logoutUser = async (input: { token: string }) => {
   await db.delete(sessions).where(eq(sessions.token, token));
   return { success: true };
 };
+
+export const getCurrentUser = async (input: { token: string }) => {
+  const { token } = input;
+
+  // 1. Find session by token
+  const [session] = await db.select().from(sessions).where(eq(sessions.token, token));
+
+  // 2. If session not found
+  if (!session) {
+    throw new Error("Invalid token");
+  }
+
+  // 3. Check expiration
+  if (session.expiresAt < new Date()) {
+    // Auto logout: delete session
+    await db.delete(sessions).where(eq(sessions.token, token));
+    throw new Error("Token telah kadaluarsa");
+  }
+
+  // 4. Get user data
+  const [user] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    })
+    .from(users)
+    .where(eq(users.id, session.userId));
+
+  return user;
+};

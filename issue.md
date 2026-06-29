@@ -1,268 +1,257 @@
-# Issue: Implementasi Fitur Login User dengan Token Sesi
+# Issue: Get Current User API
 
 ## Deskripsi
-Buat endpoint login user yang memvalidasi email & password, lalu menghasilkan token UUID sebagai sesi yang disimpan di tabel `sessions`. Token ini dikembalikan ke client sebagai bukti autentikasi.
+
+Tambahkan endpoint untuk mendapatkan data user yang sedang login berdasarkan token sesi yang aktif.
+Jika token sudah kadaluarsa, sistem harus menghapus sesi tersebut secara otomatis dan mengembalikan pesan error.
 
 ---
 
-## Konteks Proyek
+## Endpoint
 
-### Tech Stack
-- **Runtime**: Bun
-- **Framework**: ElysiaJS
-- **Database**: MySQL
-- **ORM**: Drizzle ORM (`drizzle-orm/mysql2`)
-- **Password Hashing**: `bcryptjs`
+```
+GET /api/users/current
+```
 
-### Struktur Folder yang Sudah Ada
+### Header yang Diperlukan
+
+| Key             | Value               | Keterangan       |
+| --------------- | ------------------- | ---------------- |
+| `Authorization` | `Bearer <token>`    | Token dari login |
+
+---
+
+## Response
+
+### ✅ Success (HTTP 200)
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": 1,
+    "name": "nama user",
+    "email": "email user",
+    "created_at": "2022-01-01T00:00:00.000Z",
+    "updated_at": "2022-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### ❌ Failed – Token tidak ditemukan / tidak dikirim (HTTP 401)
+
+```json
+{
+  "status": "failed",
+  "error": "Token missing"
+}
+```
+
+### ❌ Failed – Token kadaluarsa (HTTP 401)
+
+```json
+{
+  "status": "failed",
+  "error": "Token telah kadaluarsa"
+}
+```
+
+### ❌ Failed – Token tidak valid (HTTP 401)
+
+```json
+{
+  "status": "failed",
+  "error": "Invalid token"
+}
+```
+
+---
+
+## Struktur Folder & File
+
 ```
 src/
-├── db/
-│   ├── index.ts       # Koneksi database (Drizzle + MySQL2 pool)
-│   └── schema.ts      # Definisi tabel Drizzle ORM
 ├── routes/
-│   └── users-route.ts # Routing ElysiaJS (prefix: /api/users)
-├── services/
-│   └── users-service.ts # Business logic (registerUser)
-└── index.ts           # Entry point, mounting routes ke Elysia app
-```
-
-### Konvensi Penamaan File
-| Folder     | Format               | Contoh              |
-|------------|----------------------|---------------------|
-| `routes/`  | `{nama}-route.ts`    | `users-route.ts`    |
-| `services/`| `{nama}-service.ts`  | `users-service.ts`  |
-
----
-
-## Tugas yang Harus Dikerjakan
-
-### Langkah 1 — Tambah Tabel `sessions` di Schema Drizzle
-
-**File**: `src/db/schema.ts`
-
-Tambahkan definisi tabel `sessions` menggunakan Drizzle ORM. Tabel ini menyimpan token sesi yang dibuat saat user login.
-
-**Struktur tabel:**
-
-| Field        | Tipe SQL             | Keterangan                                 |
-|--------------|----------------------|--------------------------------------------|
-| `id`         | `INT` AUTO_INCREMENT | Primary Key                                |
-| `token`      | `VARCHAR(255)` NOT NULL | UUID token autentikasi user             |
-| `user_id`    | `INT`                | Foreign Key ke tabel `users`               |
-| `created_at` | `TIMESTAMP`          | Default `NOW()`                            |
-
-**Implementasi Drizzle ORM:**
-
-```typescript
-// Tambahkan import 'int', 'varchar', 'timestamp' sudah ada.
-// Tambahkan export berikut di bawah definisi tabel 'users':
-
-export const sessions = mysqlTable("sessions", {
-  id: int("id").notNull().primaryKey().autoincrement(),
-  token: varchar("token", { length: 255 }).notNull(),
-  userId: int("user_id"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-```
-
-> **Catatan**: Import yang dibutuhkan (`int`, `varchar`, `timestamp`, `mysqlTable`) sudah ada di baris 1 file `schema.ts`. Cukup tambahkan blok `export const sessions` saja.
-
-**Setelah selesai**, jalankan perintah berikut untuk push schema ke database:
-```bash
-bun run db:push
+│   └── users-route.ts        ← MODIFY (tambahkan route GET /current)
+└── services/
+    └── users-service.ts      ← MODIFY (tambahkan fungsi getCurrentUser)
 ```
 
 ---
 
-### Langkah 2 — Buat Logic Login di `users-service.ts`
+## Langkah Implementasi
 
-**File**: `src/services/users-service.ts`
+### Langkah 1 — Tambahkan fungsi `getCurrentUser` di `users-service.ts`
 
-Tambahkan fungsi `loginUser` ke file service yang sudah ada. Jangan hapus fungsi `registerUser` yang sudah ada.
+File: `src/services/users-service.ts`
 
-**Alur Logic:**
-1. Cari user berdasarkan `email` di tabel `users`
-2. Jika user tidak ditemukan → lempar error `"Email atau password salah"`
-3. Bandingkan `password` input dengan `password` hash di database menggunakan `bcrypt.compare()`
-4. Jika password salah → lempar error `"Email atau password salah"`
-5. Generate UUID sebagai token menggunakan `crypto.randomUUID()`
-6. Simpan token baru ke tabel `sessions` dengan `userId` yang sesuai
-7. Kembalikan `{ token }` ke caller
+Tambahkan fungsi baru di bawah fungsi `logoutUser` yang sudah ada.
 
-**Tambahkan import berikut** (di bagian atas file, setelah import yang sudah ada):
+**Logika:**
+1. Terima parameter `token: string` dari argumen fungsi.
+2. Cari sesi di tabel `sessions` berdasarkan kolom `token`.
+3. Jika sesi **tidak ditemukan**, lempar error `"Invalid token"`.
+4. Jika sesi **ditemukan**, cek apakah kolom `expiresAt` sudah melewati waktu sekarang (`new Date()`).
+   - Jika sudah kadaluarsa:
+     - Hapus sesi dari tabel `sessions` (query `DELETE`) — ini adalah proses **auto logout**.
+     - Lempar error `"Token telah kadaluarsa"`.
+5. Jika sesi masih valid, ambil data user dari tabel `users` menggunakan `userId` yang ada di dalam sesi.
+6. Kembalikan data user dengan field: `id`, `name`, `email`, `createdAt`, `updatedAt`.
+
+**Contoh kode:**
+
 ```typescript
-import { sessions } from "../db/schema";
-```
+export const getCurrentUser = async (input: { token: string }) => {
+  const { token } = input;
 
-**Tambahkan tipe input dan fungsi berikut** (di bawah fungsi `registerUser`):
+  // 1. Cari sesi berdasarkan token
+  const [session] = await db
+    .select()
+    .from(sessions)
+    .where(eq(sessions.token, token));
 
-```typescript
-export type LoginUserInput = {
-  email: string;
-  password: string;
-};
-
-export const loginUser = async (input: LoginUserInput) => {
-  const { email, password } = input;
-
-  // 1. Cari user berdasarkan email
-  const result = await db.select().from(users).where(eq(users.email, email));
-  if (result.length === 0) {
-    throw new Error("Email atau password salah");
-  }
-  const user = result[0];
-
-  // 2. Verifikasi password
-  const isValid = await bcrypt.compare(password, user.password);
-  if (!isValid) {
-    throw new Error("Email atau password salah");
+  // 2. Jika sesi tidak ditemukan
+  if (!session) {
+    throw new Error("Invalid token");
   }
 
-  // 3. Generate token UUID
-  const token = crypto.randomUUID();
+  // 3. Cek apakah token sudah kadaluarsa
+  if (session.expiresAt < new Date()) {
+    // Auto logout: hapus sesi dari database
+    await db.delete(sessions).where(eq(sessions.token, token));
+    throw new Error("Token telah kadaluarsa");
+  }
 
-  // 4. Simpan sesi ke database
-  await db.insert(sessions).values({ token, userId: user.id });
+  // 4. Ambil data user berdasarkan userId dari sesi
+  const [user] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    })
+    .from(users)
+    .where(eq(users.id, session.userId));
 
-  // 5. Kembalikan token
-  return { token };
+  return user;
 };
 ```
 
-> **Catatan**: `crypto.randomUUID()` adalah built-in API di Bun/Node.js (tidak perlu install library tambahan).
+> **Catatan:** Pastikan `getCurrentUser` di-export agar bisa digunakan di `users-route.ts`.
 
 ---
 
-### Langkah 3 — Tambah Route Login di `users-route.ts`
+### Langkah 2 — Tambahkan route `GET /current` di `users-route.ts`
 
-**File**: `src/routes/users-route.ts`
+File: `src/routes/users-route.ts`
 
-Tambahkan endpoint `POST /login` ke route yang sudah ada. Jangan hapus endpoint `/register` yang sudah ada.
+**2a. Update import**
 
-**Tambahkan import `loginUser`** di bagian atas:
+Tambahkan `getCurrentUser` ke dalam import dari `users-service`:
+
 ```typescript
-import { registerUser, loginUser } from "../services/users-service";
+// Sebelum:
+import { registerUser, loginUser, logoutUser } from "../services/users-service";
+
+// Sesudah:
+import { registerUser, loginUser, logoutUser, getCurrentUser } from "../services/users-service";
 ```
 
-**Tambahkan endpoint baru** dengan meng-chain `.post("/login", ...)` setelah endpoint `/register`:
+**2b. Tambahkan route baru**
+
+Tambahkan method `.get()` ke dalam chain `usersRoute` yang sudah ada, **setelah** route `POST /logout`:
 
 ```typescript
-.post(
-  "/login",
-  async ({ body, set }) => {
+.get(
+  "/current",
+  async ({ request, set }) => {
     try {
-      const data = await loginUser(body);
-      return { status: "success", data };
+      // 1. Ambil token dari header Authorization
+      const auth = request.headers.get("authorization")?.split(" ")[1];
+
+      // 2. Jika header tidak ada atau token kosong, kembalikan error
+      if (!auth) {
+        set.status = 401;
+        return { status: "failed", error: "Token missing" };
+      }
+
+      // 3. Panggil service untuk mendapatkan data user
+      const user = await getCurrentUser({ token: auth });
+
+      return { status: "success", data: user };
     } catch (error: any) {
       set.status = 401;
-      return { status: "failed", error: error.message || "Login gagal" };
+      return { status: "failed", error: error.message || "Unauthorized" };
     }
-  },
-  {
-    body: t.Object({
-      email: t.String({ format: "email" }),
-      password: t.String({ minLength: 1 }),
-    }),
   }
 )
 ```
 
-> **Catatan**: Gunakan HTTP status `401 Unauthorized` untuk kegagalan login (bukan `400 Bad Request`).
+> **Catatan:** Route `.get("/current", ...)` tidak membutuhkan validasi body (`t.Object`),
+> karena endpoint ini tidak menerima request body — hanya membaca header.
 
 ---
 
-## Spesifikasi API
-
-### Endpoint
-```
-POST /api/users/login
-```
-
-### Request Body
-```json
-{
-  "email": "budi@mail.com",
-  "password": "budii"
-}
-```
-
-### Response Body (Sukses — HTTP 200)
-```json
-{
-  "status": "success",
-  "data": {
-    "token": "550e8400-e29b-41d4-a716-446655440000"
-  }
-}
-```
-
-### Response Body (Gagal — HTTP 401)
-```json
-{
-  "status": "failed",
-  "error": "Email atau password salah"
-}
-```
-
----
-
-## Urutan Pengerjaan yang Disarankan
+## Alur Lengkap (Flow)
 
 ```
-1. Edit src/db/schema.ts              → Tambah tabel sessions
-2. Jalankan: bun run db:push          → Sync schema ke database
-3. Edit src/services/users-service.ts → Tambah fungsi loginUser
-4. Edit src/routes/users-route.ts     → Tambah endpoint POST /login
-5. Jalankan: bun run dev              → Jalankan server
-6. Test endpoint dengan curl atau Postman (lihat contoh di bawah)
+Client
+  │
+  ├──► GET /api/users/current
+  │    Header: Authorization: Bearer <token>
+  │
+  ▼
+users-route.ts (GET /current)
+  │  Ekstrak token dari header Authorization
+  │  Jika tidak ada token → return 401 "Token missing"
+  │
+  ▼
+users-service.ts (getCurrentUser)
+  │  Query sessions WHERE token = <token>
+  │  Jika tidak ditemukan → throw "Invalid token"
+  │  Jika expiresAt < now → DELETE sesi + throw "Token telah kadaluarsa"
+  │  Query users WHERE id = session.userId
+  │
+  ▼
+users-route.ts
+  │  Jika service throw error → return 401 + error.message
+  │  Jika sukses → return 200 + data user
+  │
+  ▼
+Client
+  └──► Response JSON
 ```
 
 ---
 
-## Testing Manual
+## Tabel & Schema Database yang Digunakan
 
-### Test Login Berhasil
-```bash
-curl -X POST http://localhost:3000/api/users/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "budi@mail.com", "password": "budii"}'
-```
+Tidak ada perubahan schema database. Fitur ini hanya membaca tabel yang sudah ada:
 
-**Expected response:**
-```json
-{
-  "status": "success",
-  "data": {
-    "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  }
-}
-```
-
-### Test Login Gagal (password salah)
-```bash
-curl -X POST http://localhost:3000/api/users/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "budi@mail.com", "password": "salah"}'
-```
-
-**Expected response (HTTP 401):**
-```json
-{
-  "status": "failed",
-  "error": "Email atau password salah"
-}
-```
+| Tabel      | Kolom yang Digunakan                                   |
+| ---------- | ------------------------------------------------------ |
+| `sessions` | `token`, `expires_at`, `user_id`                       |
+| `users`    | `id`, `name`, `email`, `created_at`, `updated_at`      |
 
 ---
 
-## Catatan Penting untuk Developer
+## Checklist Pengerjaan
 
-- **Jangan** buat file baru. Semua perubahan cukup dilakukan di 3 file yang disebutkan di atas.
-- **Jangan** hapus kode yang sudah ada. Hanya tambahkan kode baru.
-- **Jangan** install library tambahan. Semua dependency yang dibutuhkan sudah tersedia:
-  - `bcryptjs` → sudah ada di `package.json`
-  - `drizzle-orm` → sudah ada di `package.json`
-  - `crypto` → built-in Bun/Node.js, tidak perlu import
-- Gunakan **pesan error yang sama** (`"Email atau password salah"`) untuk kasus email tidak ditemukan maupun password salah. Ini adalah praktik keamanan agar attacker tidak bisa menebak apakah email terdaftar atau tidak.
-- Pastikan `bun run db:push` berhasil sebelum menjalankan server, karena tabel `sessions` harus sudah ada di database.
+- [ ] Tambahkan fungsi `getCurrentUser` di `src/services/users-service.ts`
+- [ ] Export fungsi `getCurrentUser` dari `users-service.ts`
+- [ ] Update import di `src/routes/users-route.ts` untuk menyertakan `getCurrentUser`
+- [ ] Tambahkan route `GET /current` di `src/routes/users-route.ts`
+- [ ] Test manual: kirim request dengan token valid → harus return data user
+- [ ] Test manual: kirim request tanpa header Authorization → harus return `"Token missing"`
+- [ ] Test manual: kirim request dengan token tidak valid → harus return `"Invalid token"`
+- [ ] Test manual: kirim request dengan token yang sudah kadaluarsa → harus return `"Token telah kadaluarsa"` dan sesi terhapus dari database
+
+---
+
+## Referensi Kode yang Sudah Ada
+
+Gunakan implementasi berikut sebagai referensi pola penulisan:
+
+- **Route pattern** → lihat `POST /logout` di `src/routes/users-route.ts`
+- **Service pattern** → lihat fungsi `logoutUser` di `src/services/users-service.ts`
