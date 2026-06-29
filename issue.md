@@ -1,368 +1,268 @@
-# Planning Setup Project Backend
+# Issue: Implementasi Fitur Login User dengan Token Sesi
 
-Dokumen ini berisi instruksi tingkat tinggi (high-level) untuk menginisialisasi dan mengatur proyek backend baru. Instruksi ini ditujukan untuk diimplementasikan oleh programmer atau AI assistant.
-
-## Tech Stack
-- **Runtime & Package Manager**: Bun
-- **Web Framework**: ElysiaJS
-- **ORM**: Drizzle
-- **Database**: MySQL
-
-## Langkah Implementasi
-
-### 1. Inisialisasi Proyek
-- Lakukan inisialisasi project Bun di dalam folder ini.
-- Pastikan file konfigurasi dasar seperti `package.json` dan `tsconfig.json` sudah terbentuk.
-
-### 2. Instalasi Dependency
-- Install framework **ElysiaJS**.
-- Install **Drizzle ORM** untuk query database.
-- Install **Drizzle Kit** (sebagai dev dependency) untuk keperluan migrasi.
-- Install driver/klien **MySQL** yang kompatibel dengan Bun dan Drizzle (contoh: `mysql2`).
-
-### 3. Konfigurasi Database & ORM
-- Siapkan file `.env` untuk menyimpan konfigurasi koneksi MySQL (seperti `DATABASE_URL`).
-- Buat modul/file untuk mengatur koneksi database menggunakan Drizzle.
-- Definisikan setidaknya satu skema tabel sederhana (misalnya tabel `users`) sebagai inisialisasi awal.
-- Buat file konfigurasi Drizzle Kit (`drizzle.config.ts`) agar tool migrasi dapat membaca skema dan database.
-
-### 4. Setup Server Aplikasi
-- Buat file entry point aplikasi (misalnya `src/index.ts`).
-- Inisialisasi instance server ElysiaJS.
-- Daftarkan route dasar (misalnya `GET /`) yang me-return status "OK" untuk memastikan server menyala.
-
-### 5. Konfigurasi Script
-- Tambahkan command scripts yang diperlukan di dalam `package.json`, antara lain:
-  - Script untuk menjalankan server development (misal menggunakan `bun --watch`).
-  - Script untuk men-generate migrasi database Drizzle.
-  - Script untuk mengeksekusi migrasi ke database.
-
-## Kriteria Selesai (Definition of Done)
-- Server ElysiaJS dapat dijalankan tanpa error menggunakan perintah dari `package.json`.
-- Aplikasi dapat merespons request HTTP sederhana.
-- Setup Drizzle sudah dikonfigurasi dengan benar sehingga dapat melakukan koneksi ke database MySQL.
-- Workflow migrasi database sudah disiapkan dan siap digunakan.
+## Deskripsi
+Buat endpoint login user yang memvalidasi email & password, lalu menghasilkan token UUID sebagai sesi yang disimpan di tabel `sessions`. Token ini dikembalikan ke client sebagai bukti autentikasi.
 
 ---
 
-# Planning: Fitur Registrasi User
+## Konteks Proyek
 
-Dokumen ini berisi instruksi detail untuk mengimplementasikan fitur registrasi user baru. Instruksi ini ditujukan untuk diimplementasikan oleh junior developer atau AI assistant.
-
-## Tech Stack yang Digunakan
-
-- **Runtime & Package Manager**: Bun
-- **Web Framework**: ElysiaJS
-- **ORM**: Drizzle ORM
+### Tech Stack
+- **Runtime**: Bun
+- **Framework**: ElysiaJS
 - **Database**: MySQL
+- **ORM**: Drizzle ORM (`drizzle-orm/mysql2`)
 - **Password Hashing**: `bcryptjs`
 
----
-
-## Bagian 1: Pembaruan Skema Database
-
-### Tabel `users`
-
-Tabel `users` sudah ada di `src/db/schema.ts`, namun perlu diperbarui untuk menambahkan field `password` dan `updated_at`.
-
-**Struktur tabel yang diinginkan:**
-
-| Field        | Tipe             | Constraint                          |
-| ------------ | ---------------- | ----------------------------------- |
-| `id`         | `INT`            | `AUTO_INCREMENT`, `PRIMARY KEY`     |
-| `name`       | `VARCHAR(255)`   | `NOT NULL`                          |
-| `email`      | `VARCHAR(255)`   | `NOT NULL`, `UNIQUE`                |
-| `password`   | `VARCHAR(255)`   | `NOT NULL`                          |
-| `created_at` | `TIMESTAMP`      | `DEFAULT NOW()`                     |
-| `updated_at` | `TIMESTAMP`      | `DEFAULT NOW()`, `ON UPDATE NOW()`  |
-
-### Langkah 1.1 — Perbarui `src/db/schema.ts`
-
-Buka file `src/db/schema.ts` dan ubah isinya menjadi seperti berikut:
-
-```typescript
-import { mysqlTable, serial, varchar, timestamp } from "drizzle-orm/mysql-core";
-
-export const users = mysqlTable("users", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  password: varchar("password", { length: 255 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
-});
-```
-
-**Poin penting:**
-- Field `password` ditambahkan dengan tipe `varchar(255)` dan constraint `notNull()`.
-- Field `updatedAt` ditambahkan dengan `.onUpdateNow()` agar otomatis ter-update setiap kali baris diubah.
-
-### Langkah 1.2 — Jalankan Migrasi Database
-
-Setelah schema diperbarui, generate dan jalankan migrasi agar perubahan diterapkan ke database.
-
-```bash
-# Generate file migrasi
-bun run db:generate
-
-# Terapkan migrasi ke database
-bun run db:migrate
-```
-
----
-
-## Bagian 2: Instalasi Dependency Tambahan
-
-Fitur ini membutuhkan library untuk melakukan hashing password menggunakan bcrypt.
-
-### Langkah 2.1 — Install `bcryptjs`
-
-Jalankan perintah berikut untuk menginstall library dan type definition-nya:
-
-```bash
-bun add bcryptjs
-bun add -d @types/bcryptjs
-```
-
-**Penjelasan:**
-- `bcryptjs` adalah library murni JavaScript untuk bcrypt hashing, kompatibel dengan Bun.
-- `@types/bcryptjs` adalah type definition untuk TypeScript.
-
----
-
-## Bagian 3: Struktur Folder
-
-Buat struktur folder baru di dalam `src/` seperti berikut:
-
+### Struktur Folder yang Sudah Ada
 ```
 src/
 ├── db/
-│   └── schema.ts         # (sudah ada, diperbarui)
+│   ├── index.ts       # Koneksi database (Drizzle + MySQL2 pool)
+│   └── schema.ts      # Definisi tabel Drizzle ORM
 ├── routes/
-│   └── users-route.ts    # [BARU] Routing untuk endpoint user
+│   └── users-route.ts # Routing ElysiaJS (prefix: /api/users)
 ├── services/
-│   └── users-service.ts  # [BARU] Logic bisnis untuk user
-└── index.ts              # (sudah ada, perlu diperbarui)
+│   └── users-service.ts # Business logic (registerUser)
+└── index.ts           # Entry point, mounting routes ke Elysia app
 ```
 
-**Aturan penamaan file:**
-- Folder `routes/` → format nama: `[nama-resource]-route.ts`
-- Folder `services/` → format nama: `[nama-resource]-service.ts`
+### Konvensi Penamaan File
+| Folder     | Format               | Contoh              |
+|------------|----------------------|---------------------|
+| `routes/`  | `{nama}-route.ts`    | `users-route.ts`    |
+| `services/`| `{nama}-service.ts`  | `users-service.ts`  |
 
 ---
 
-## Bagian 4: Implementasi File
+## Tugas yang Harus Dikerjakan
 
-### Langkah 4.1 — Buat `src/services/users-service.ts`
+### Langkah 1 — Tambah Tabel `sessions` di Schema Drizzle
 
-File ini berisi **seluruh logic bisnis** untuk fitur user, termasuk validasi dan interaksi dengan database.
+**File**: `src/db/schema.ts`
+
+Tambahkan definisi tabel `sessions` menggunakan Drizzle ORM. Tabel ini menyimpan token sesi yang dibuat saat user login.
+
+**Struktur tabel:**
+
+| Field        | Tipe SQL             | Keterangan                                 |
+|--------------|----------------------|--------------------------------------------|
+| `id`         | `INT` AUTO_INCREMENT | Primary Key                                |
+| `token`      | `VARCHAR(255)` NOT NULL | UUID token autentikasi user             |
+| `user_id`    | `INT`                | Foreign Key ke tabel `users`               |
+| `created_at` | `TIMESTAMP`          | Default `NOW()`                            |
+
+**Implementasi Drizzle ORM:**
 
 ```typescript
-import { db } from "../db";
-import { users } from "../db/schema";
-import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+// Tambahkan import 'int', 'varchar', 'timestamp' sudah ada.
+// Tambahkan export berikut di bawah definisi tabel 'users':
 
-// Tipe data untuk input registrasi
-export type RegisterUserInput = {
-  name: string;
+export const sessions = mysqlTable("sessions", {
+  id: int("id").notNull().primaryKey().autoincrement(),
+  token: varchar("token", { length: 255 }).notNull(),
+  userId: int("user_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+```
+
+> **Catatan**: Import yang dibutuhkan (`int`, `varchar`, `timestamp`, `mysqlTable`) sudah ada di baris 1 file `schema.ts`. Cukup tambahkan blok `export const sessions` saja.
+
+**Setelah selesai**, jalankan perintah berikut untuk push schema ke database:
+```bash
+bun run db:push
+```
+
+---
+
+### Langkah 2 — Buat Logic Login di `users-service.ts`
+
+**File**: `src/services/users-service.ts`
+
+Tambahkan fungsi `loginUser` ke file service yang sudah ada. Jangan hapus fungsi `registerUser` yang sudah ada.
+
+**Alur Logic:**
+1. Cari user berdasarkan `email` di tabel `users`
+2. Jika user tidak ditemukan → lempar error `"Email atau password salah"`
+3. Bandingkan `password` input dengan `password` hash di database menggunakan `bcrypt.compare()`
+4. Jika password salah → lempar error `"Email atau password salah"`
+5. Generate UUID sebagai token menggunakan `crypto.randomUUID()`
+6. Simpan token baru ke tabel `sessions` dengan `userId` yang sesuai
+7. Kembalikan `{ token }` ke caller
+
+**Tambahkan import berikut** (di bagian atas file, setelah import yang sudah ada):
+```typescript
+import { sessions } from "../db/schema";
+```
+
+**Tambahkan tipe input dan fungsi berikut** (di bawah fungsi `registerUser`):
+
+```typescript
+export type LoginUserInput = {
   email: string;
   password: string;
 };
 
-export const registerUser = async (input: RegisterUserInput) => {
-  const { name, email, password } = input;
+export const loginUser = async (input: LoginUserInput) => {
+  const { email, password } = input;
 
-  // 1. Cek apakah email sudah terdaftar
-  const existingUser = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, email));
+  // 1. Cari user berdasarkan email
+  const result = await db.select().from(users).where(eq(users.email, email));
+  if (result.length === 0) {
+    throw new Error("Email atau password salah");
+  }
+  const user = result[0];
 
-  if (existingUser.length > 0) {
-    throw new Error("Email sudah terdaftar");
+  // 2. Verifikasi password
+  const isValid = await bcrypt.compare(password, user.password);
+  if (!isValid) {
+    throw new Error("Email atau password salah");
   }
 
-  // 2. Hash password menggunakan bcrypt (salt rounds = 10)
-  const hashedPassword = await bcrypt.hash(password, 10);
+  // 3. Generate token UUID
+  const token = crypto.randomUUID();
 
-  // 3. Simpan user baru ke database
-  await db.insert(users).values({
-    name,
-    email,
-    password: hashedPassword,
-  });
+  // 4. Simpan sesi ke database
+  await db.insert(sessions).values({ token, userId: user.id });
 
-  // 4. Ambil data user yang baru dibuat (tanpa password)
-  const newUser = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt,
-    })
-    .from(users)
-    .where(eq(users.email, email));
-
-  return newUser[0];
+  // 5. Kembalikan token
+  return { token };
 };
 ```
 
-**Poin penting:**
-- Password **tidak boleh** dikembalikan ke response. Gunakan `select` dengan field spesifik.
-- Selalu cek duplikasi email sebelum insert.
-- Gunakan `bcrypt.hash(password, 10)` — angka `10` adalah salt rounds (semakin besar semakin aman tapi semakin lambat).
+> **Catatan**: `crypto.randomUUID()` adalah built-in API di Bun/Node.js (tidak perlu install library tambahan).
 
 ---
 
-### Langkah 4.2 — Buat `src/routes/users-route.ts`
+### Langkah 3 — Tambah Route Login di `users-route.ts`
 
-File ini berisi **definisi route** ElysiaJS untuk resource `users`.
+**File**: `src/routes/users-route.ts`
 
+Tambahkan endpoint `POST /login` ke route yang sudah ada. Jangan hapus endpoint `/register` yang sudah ada.
+
+**Tambahkan import `loginUser`** di bagian atas:
 ```typescript
-import { Elysia, t } from "elysia";
-import { registerUser } from "../services/users-service";
-
-export const usersRoute = new Elysia({ prefix: "/api/users" })
-  .post(
-    "/register",
-    async ({ body, set }) => {
-      try {
-        const user = await registerUser(body);
-        return {
-          status: "success",
-          data: user,
-        };
-      } catch (error: any) {
-        set.status = 400;
-        return {
-          status: "failed",
-          error: error.message || "Registrasi gagal",
-        };
-      }
-    },
-    {
-      // Validasi body request menggunakan Elysia type system
-      body: t.Object({
-        name: t.String({ minLength: 1 }),
-        email: t.String({ format: "email" }),
-        password: t.String({ minLength: 6 }),
-      }),
-    }
-  );
+import { registerUser, loginUser } from "../services/users-service";
 ```
 
-**Poin penting:**
-- Gunakan `{ prefix: "/api/users" }` agar semua route di file ini berada di bawah path `/api/users`.
-- Gunakan validasi body bawaan Elysia (`t.Object`) untuk memastikan input valid sebelum masuk ke service.
-- Gunakan `set.status = 400` untuk mengembalikan HTTP status code yang sesuai saat error.
-
----
-
-### Langkah 4.3 — Perbarui `src/index.ts`
-
-Daftarkan `usersRoute` ke dalam instance Elysia utama menggunakan method `.use()`.
+**Tambahkan endpoint baru** dengan meng-chain `.post("/login", ...)` setelah endpoint `/register`:
 
 ```typescript
-import { Elysia } from "elysia";
-import { db } from "./db";
-import { users } from "./db/schema";
-import { usersRoute } from "./routes/users-route"; // [TAMBAHKAN]
-
-const app = new Elysia()
-  .get("/", () => ({
-    status: "OK",
-    message: "Server is running",
-  }))
-  .get("/users", async () => {
+.post(
+  "/login",
+  async ({ body, set }) => {
     try {
-      const allUsers = await db.select().from(users);
-      return { success: true, data: allUsers };
+      const data = await loginUser(body);
+      return { status: "success", data };
     } catch (error: any) {
-      return { success: false, error: error.message || "Failed to fetch users" };
+      set.status = 401;
+      return { status: "failed", error: error.message || "Login gagal" };
     }
-  })
-  .use(usersRoute) // [TAMBAHKAN]
-  .listen(Number(process.env.PORT) || 3000);
-
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
-);
+  },
+  {
+    body: t.Object({
+      email: t.String({ format: "email" }),
+      password: t.String({ minLength: 1 }),
+    }),
+  }
+)
 ```
+
+> **Catatan**: Gunakan HTTP status `401 Unauthorized` untuk kegagalan login (bukan `400 Bad Request`).
 
 ---
 
-## Bagian 5: Spesifikasi API
+## Spesifikasi API
 
-### `POST /api/users/register`
+### Endpoint
+```
+POST /api/users/login
+```
 
-**Deskripsi:** Mendaftarkan user baru ke dalam sistem.
-
-**Request Body (JSON):**
-
+### Request Body
 ```json
 {
-  "name": "Budi",
   "email": "budi@mail.com",
   "password": "budii"
 }
 ```
 
-| Field      | Tipe     | Wajib | Validasi             |
-| ---------- | -------- | ----- | -------------------- |
-| `name`     | `string` | Ya    | Tidak boleh kosong   |
-| `email`    | `string` | Ya    | Format email valid   |
-| `password` | `string` | Ya    | Minimal 6 karakter   |
-
-**Response Body (Sukses — HTTP 200):**
-
+### Response Body (Sukses — HTTP 200)
 ```json
 {
   "status": "success",
   "data": {
-    "id": 1,
-    "name": "Budi",
-    "email": "budi@mail.com",
-    "createdAt": "2026-06-25T10:00:00.000Z",
-    "updatedAt": "2026-06-25T10:00:00.000Z"
+    "token": "550e8400-e29b-41d4-a716-446655440000"
   }
 }
 ```
 
-**Response Body (Gagal — HTTP 400):**
-
+### Response Body (Gagal — HTTP 401)
 ```json
 {
   "status": "failed",
-  "error": "Email sudah terdaftar"
+  "error": "Email atau password salah"
 }
 ```
 
 ---
 
-## Bagian 6: Urutan Pengerjaan (Checklist)
+## Urutan Pengerjaan yang Disarankan
 
-Kerjakan langkah-langkah berikut secara berurutan:
-
-- [ ] **1.** Perbarui `src/db/schema.ts` — tambahkan field `password` dan `updatedAt`
-- [ ] **2.** Jalankan `bun run db:generate` untuk generate file migrasi
-- [ ] **3.** Jalankan `bun run db:migrate` untuk menerapkan migrasi ke database
-- [ ] **4.** Install dependency `bcryptjs` dan `@types/bcryptjs`
-- [ ] **5.** Buat folder `src/routes/` dan `src/services/`
-- [ ] **6.** Buat file `src/services/users-service.ts` sesuai kode di atas
-- [ ] **7.** Buat file `src/routes/users-route.ts` sesuai kode di atas
-- [ ] **8.** Perbarui `src/index.ts` — import dan daftarkan `usersRoute` menggunakan `.use()`
-- [ ] **9.** Jalankan server dengan `bun run dev` dan pastikan tidak ada error
-- [ ] **10.** Test endpoint `POST /api/users/register` menggunakan tool seperti Postman atau `curl`
+```
+1. Edit src/db/schema.ts              → Tambah tabel sessions
+2. Jalankan: bun run db:push          → Sync schema ke database
+3. Edit src/services/users-service.ts → Tambah fungsi loginUser
+4. Edit src/routes/users-route.ts     → Tambah endpoint POST /login
+5. Jalankan: bun run dev              → Jalankan server
+6. Test endpoint dengan curl atau Postman (lihat contoh di bawah)
+```
 
 ---
 
-## Kriteria Selesai (Definition of Done)
+## Testing Manual
 
-- Endpoint `POST /api/users/register` dapat menerima request dan menyimpan user baru ke database.
-- Password tersimpan di database dalam bentuk **bcrypt hash**, bukan plaintext.
-- Response **tidak mengandung field `password`**.
-- Jika email sudah terdaftar, API mengembalikan error dengan status HTTP 400.
-- Jika request body tidak valid (misal email salah format), API mengembalikan error validasi.
-- Server tetap berjalan tanpa crash setelah implementasi selesai.
+### Test Login Berhasil
+```bash
+curl -X POST http://localhost:3000/api/users/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "budi@mail.com", "password": "budii"}'
+```
+
+**Expected response:**
+```json
+{
+  "status": "success",
+  "data": {
+    "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  }
+}
+```
+
+### Test Login Gagal (password salah)
+```bash
+curl -X POST http://localhost:3000/api/users/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "budi@mail.com", "password": "salah"}'
+```
+
+**Expected response (HTTP 401):**
+```json
+{
+  "status": "failed",
+  "error": "Email atau password salah"
+}
+```
+
+---
+
+## Catatan Penting untuk Developer
+
+- **Jangan** buat file baru. Semua perubahan cukup dilakukan di 3 file yang disebutkan di atas.
+- **Jangan** hapus kode yang sudah ada. Hanya tambahkan kode baru.
+- **Jangan** install library tambahan. Semua dependency yang dibutuhkan sudah tersedia:
+  - `bcryptjs` → sudah ada di `package.json`
+  - `drizzle-orm` → sudah ada di `package.json`
+  - `crypto` → built-in Bun/Node.js, tidak perlu import
+- Gunakan **pesan error yang sama** (`"Email atau password salah"`) untuk kasus email tidak ditemukan maupun password salah. Ini adalah praktik keamanan agar attacker tidak bisa menebak apakah email terdaftar atau tidak.
+- Pastikan `bun run db:push` berhasil sebelum menjalankan server, karena tabel `sessions` harus sudah ada di database.
